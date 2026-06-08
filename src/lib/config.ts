@@ -12,7 +12,7 @@ export interface CliConfig {
 
 const CONFIG_DIR_NAME = ".getmnemo";
 const CONFIG_FILE_NAME = "config.json";
-const DEFAULT_API_URL = "https://api.getmnemo.xyz";
+const DEFAULT_API_URL = "https://api.mnemohq.com";
 
 export function configDir(): string {
   return join(homedir(), CONFIG_DIR_NAME);
