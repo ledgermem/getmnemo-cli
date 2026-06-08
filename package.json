@@ -49,7 +49,7 @@
     "type": "git",
     "url": "https://github.com/ledgermem/getmnemo-cli.git"
   },
-  "homepage": "https://getmnemo.xyz",
+  "homepage": "https://mnemohq.com",
   "bugs": {
     "url": "https://github.com/getmnemo/getmnemo-cli/issues"
   }
