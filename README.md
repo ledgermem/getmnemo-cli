@@ -1,28 +1,28 @@
-# @ledgermem/cli
+# getmnemo-cli
 
-The official command-line interface for [LedgerMem](https://proofly.dev) — a verifiable, append-only memory layer for AI agents.
+The official command-line interface for [Mnemo](https://mnemohq.com) — a verifiable, append-only memory layer for AI agents.
 
-`ledgermem` lets you create, search, and manage memories from your terminal, plus drop a turnkey MCP config snippet into Claude Desktop or Cursor.
+`getmnemo` lets you create, search, and manage memories from your terminal, plus drop a turnkey MCP config snippet into Claude Desktop or Cursor.
 
 ## Install
 
 ```bash
-npm install -g @ledgermem/cli
+npm install -g getmnemo-cli
 ```
 
 Or run without installing:
 
 ```bash
-npx @ledgermem/cli --help
+npx getmnemo-cli --help
 ```
 
 ## Quickstart
 
 ```bash
-ledgermem login                       # save API key + workspace to ~/.ledgermem/config.json
-ledgermem add "Acme prefers blue branding"
-ledgermem search "what brand color does Acme use?"
-ledgermem doctor                      # verify auth + API reachability
+getmnemo login                       # save API key + workspace to ~/.getmnemo/config.json
+getmnemo add "Acme prefers blue branding"
+getmnemo search "what brand color does Acme use?"
+getmnemo doctor                      # verify auth + API reachability
 ```
 
 ## Commands
@@ -31,9 +31,9 @@ ledgermem doctor                      # verify auth + API reachability
 
 | Command | Description |
 | --- | --- |
-| `ledgermem login` | Prompt for API key, workspace ID, and (optionally) API URL; persist to `~/.ledgermem/config.json`. |
-| `ledgermem logout` | Remove saved credentials. |
-| `ledgermem whoami` | Print the active workspace + API URL. |
+| `getmnemo login` | Prompt for API key, workspace ID, and (optionally) API URL; persist to `~/.getmnemo/config.json`. |
+| `getmnemo logout` | Remove saved credentials. |
+| `getmnemo whoami` | Print the active workspace + API URL. |
 
 `login` flags: `--api-key`, `--workspace-id`, `--api-url` (skip the prompt).
 
@@ -41,25 +41,25 @@ ledgermem doctor                      # verify auth + API reachability
 
 | Command | Description |
 | --- | --- |
-| `ledgermem add "<content>" [-m key=value ...]` | Add a memory with optional metadata. |
-| `ledgermem search "<query>" [--limit 5]` | Semantic search. |
-| `ledgermem get <id>` | Fetch a single memory. |
-| `ledgermem rm <id> [--yes]` | Delete a memory. |
-| `ledgermem list [--limit 20] [--cursor <c>]` | Paginate the workspace. |
+| `getmnemo add "<content>" [-m key=value ...]` | Add a memory with optional metadata. |
+| `getmnemo search "<query>" [--limit 5]` | Semantic search. |
+| `getmnemo get <id>` | Fetch a single memory. |
+| `getmnemo rm <id> [--yes]` | Delete a memory. |
+| `getmnemo list [--limit 20] [--cursor <c>]` | Paginate the workspace. |
 
 ### Workspaces
 
 | Command | Description |
 | --- | --- |
-| `ledgermem workspace list` | List workspaces from local config. |
-| `ledgermem workspace switch <id>` | Switch the active workspace. |
+| `getmnemo workspace list` | List workspaces from local config. |
+| `getmnemo workspace switch <id>` | Switch the active workspace. |
 
 ### Other
 
 | Command | Description |
 | --- | --- |
-| `ledgermem mcp [--client claude\|cursor]` | Print an MCP server config snippet. |
-| `ledgermem doctor` | Check auth + `GET /healthz`. |
+| `getmnemo mcp [--client claude\|cursor]` | Print an MCP server config snippet. |
+| `getmnemo doctor` | Check auth + `GET /healthz`. |
 
 ## Global flags
 
@@ -79,26 +79,26 @@ ledgermem doctor                      # verify auth + API reachability
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `LEDGERMEM_API_KEY` | Overrides the saved API key. | — |
-| `LEDGERMEM_WORKSPACE_ID` | Overrides the active workspace. | — |
-| `LEDGERMEM_API_URL` | Overrides the API base URL. | `https://api.proofly.dev` |
+| `GETMNEMO_API_KEY` | Overrides the saved API key. | — |
+| `GETMNEMO_WORKSPACE_ID` | Overrides the active workspace. | — |
+| `GETMNEMO_API_URL` | Overrides the API base URL. | `https://api.mnemohq.com` |
 
-Environment variables take precedence over `~/.ledgermem/config.json`.
+Environment variables take precedence over `~/.getmnemo/config.json`.
 
 ## Examples
 
 ```bash
 # add a tagged memory
-ledgermem add "Customer asked about SOC 2 timeline" -m customer=acme -m channel=email
+getmnemo add "Customer asked about SOC 2 timeline" -m customer=acme -m channel=email
 
 # JSON output for piping into jq
-ledgermem search "soc 2" --limit 3 --json | jq '.results[].id'
+getmnemo search "soc 2" --limit 3 --json | jq '.results[].id'
 
 # delete without prompting (CI-safe)
-ledgermem rm mem_01HX... --yes
+getmnemo rm mem_01HX... --yes
 
 # generate Claude Desktop MCP config
-ledgermem mcp --client claude > claude_desktop_config.json
+getmnemo mcp --client claude > claude_desktop_config.json
 ```
 
 ## Development
