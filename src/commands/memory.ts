@@ -1,7 +1,9 @@
 import { Command } from "commander";
 import kleur from "kleur";
 import prompts from "prompts";
+import type { Memory, SearchHit } from "getmnemo";
 import { getClient, parseMetadata } from "../lib/client.js";
+import { resolveContainerTag } from "../lib/config.js";
 import {
   printError,
   printInfo,
@@ -11,18 +13,10 @@ import {
   truncate,
 } from "../lib/output.js";
 
-interface MemoryRecord {
-  id?: string;
-  content?: string;
-  text?: string;
-  score?: number;
-  metadata?: Record<string, unknown>;
-  createdAt?: string;
-}
-
-function asMemory(value: unknown): MemoryRecord {
-  if (value && typeof value === "object") return value as MemoryRecord;
-  return {};
+// confirmed against prod 2026-06-16. Display id differs by endpoint: search
+// hits carry `memoryId`; full Memory objects (add/get/update/list) carry `id`.
+function memoryId(m: Memory | SearchHit): string {
+  return "memoryId" in m ? m.memoryId : m.id;
 }
 
 export function registerMemoryCommands(program: Command): void {
@@ -30,49 +24,93 @@ export function registerMemoryCommands(program: Command): void {
     .command("add <content>")
     .description("add a new memory")
     .option("-m, --metadata <pair...>", "metadata key=value pairs (repeatable)")
-    .action(async (content: string, opts: { metadata?: string[] }, cmd: Command) => {
-      const json = rootJsonFlag(cmd);
-      const ctx = await getClient();
-      const metadata = parseMetadata(opts.metadata);
-      const result = await ctx.client.add({ content, metadata });
-      if (json) {
-        printJson(result);
-        return;
-      }
-      const m = asMemory(result);
-      printSuccess(`Added memory ${kleur.dim(m.id ?? "(no id returned)")}`);
-    });
+    .option(
+      "-C, --container <tag>",
+      "container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config",
+    )
+    .action(
+      async (
+        content: string,
+        opts: { metadata?: string[]; container?: string },
+        cmd: Command,
+      ) => {
+        const json = rootJsonFlag(cmd);
+        const ctx = await getClient();
+        const metadata = parseMetadata(opts.metadata);
+        const containerTag = resolveContainerTag(ctx.cfg, opts.container);
+        if (!containerTag) {
+          printError(
+            "A container is required. Pass --container <tag>, set GETMNEMO_CONTAINER, or add defaultContainerTag to your config.",
+          );
+          process.exit(2);
+        }
+        const result = await ctx.client.add({ content, metadata, containerTag });
+        if (json) {
+          printJson(result);
+          return;
+        }
+        // confirmed against prod 2026-06-16. add() returns AddResponse
+        // { scopeKey, scope, items: Memory[] }.
+        const first = result.items[0];
+        printSuccess(
+          `Added memory ${kleur.dim(first ? memoryId(first) : "(no id returned)")}`,
+        );
+      },
+    );
 
   program
     .command("search <query>")
     .description("semantic search across memories")
     .option("-l, --limit <n>", "max results", "5")
-    .action(async (query: string, opts: { limit?: string }, cmd: Command) => {
-      const json = rootJsonFlag(cmd);
-      const ctx = await getClient();
-      const limit = Number.parseInt(opts.limit ?? "5", 10);
-      if (Number.isNaN(limit) || limit <= 0) {
-        printError("--limit must be a positive integer");
-        process.exit(2);
-      }
-      const result = await ctx.client.search({ query, limit });
-      if (json) {
-        printJson(result);
-        return;
-      }
-      const items = Array.isArray(result) ? result : ((result as { results?: unknown[] })?.results ?? []);
-      if (items.length === 0) {
-        printInfo("No matching memories.");
-        return;
-      }
-      for (const raw of items) {
-        const m = asMemory(raw);
-        const score = typeof m.score === "number" ? kleur.yellow(m.score.toFixed(3)) : kleur.dim("—");
-        const id = kleur.dim(m.id ?? "");
-        const text = m.content ?? m.text ?? "";
-        process.stdout.write(`${score}  ${id}\n  ${truncate(text, 200)}\n\n`);
-      }
-    });
+    .option(
+      "-C, --container <tag>",
+      "container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config",
+    )
+    .action(
+      async (
+        query: string,
+        opts: { limit?: string; container?: string },
+        cmd: Command,
+      ) => {
+        const json = rootJsonFlag(cmd);
+        const ctx = await getClient();
+        const limit = Number.parseInt(opts.limit ?? "5", 10);
+        if (Number.isNaN(limit) || limit <= 0) {
+          printError("--limit must be a positive integer");
+          process.exit(2);
+        }
+        const containerTag = resolveContainerTag(ctx.cfg, opts.container);
+        if (!containerTag) {
+          printError(
+            "A container is required. Pass --container <tag>, set GETMNEMO_CONTAINER, or add defaultContainerTag to your config.",
+          );
+          process.exit(2);
+        }
+        // Field is `q` (NOT `query`) per the v0.2.0 contract.
+        const result = await ctx.client.search({ q: query, limit, containerTag });
+        if (json) {
+          printJson(result);
+          return;
+        }
+        // confirmed against prod 2026-06-16. search() returns SearchResponse;
+        // the primary hits live in `results` (NOT `hits`).
+        const items = result.results;
+        if (items.length === 0) {
+          printInfo("No matching memories.");
+          return;
+        }
+        for (const m of items) {
+          const score =
+            typeof m.score === "number"
+              ? kleur.yellow(m.score.toFixed(3))
+              : kleur.dim("—");
+          const id = kleur.dim(memoryId(m));
+          process.stdout.write(
+            `${score}  ${id}\n  ${truncate(m.content, 200)}\n\n`,
+          );
+        }
+      },
+    );
 
   program
     .command("get <id>")
@@ -80,9 +118,9 @@ export function registerMemoryCommands(program: Command): void {
     .action(async (id: string, _opts: unknown, cmd: Command) => {
       const json = rootJsonFlag(cmd);
       const ctx = await getClient();
-      let raw: unknown;
+      let found: Memory;
       try {
-        raw = await ctx.client.get(id);
+        found = await ctx.client.get(id);
       } catch (err: unknown) {
         const status = (err as { status?: number })?.status;
         if (status === 404) {
@@ -92,13 +130,13 @@ export function registerMemoryCommands(program: Command): void {
         }
         throw err;
       }
-      const found = asMemory(raw);
       if (json) {
         printJson(found);
         return;
       }
-      printInfo(`id:        ${found.id}`);
-      printInfo(`content:   ${found.content ?? found.text ?? ""}`);
+      // confirmed against prod 2026-06-16. get() returns a Memory.
+      printInfo(`id:        ${memoryId(found)}`);
+      printInfo(`content:   ${found.content}`);
       if (found.metadata) printInfo(`metadata:  ${JSON.stringify(found.metadata)}`);
       if (found.createdAt) printInfo(`createdAt: ${found.createdAt}`);
     });
@@ -140,29 +178,45 @@ export function registerMemoryCommands(program: Command): void {
     .description("list memories in the current workspace")
     .option("-l, --limit <n>", "page size", "20")
     .option("-c, --cursor <cursor>", "pagination cursor")
-    .action(async (opts: { limit?: string; cursor?: string }, cmd: Command) => {
-      const json = rootJsonFlag(cmd);
-      const ctx = await getClient();
-      const limit = Number.parseInt(opts.limit ?? "20", 10);
-      if (Number.isNaN(limit) || limit <= 0) {
-        printError("--limit must be a positive integer");
-        process.exit(2);
-      }
-      const result = await ctx.client.list({ limit, cursor: opts.cursor });
-      if (json) {
-        printJson(result);
-        return;
-      }
-      const items = Array.isArray(result) ? result : ((result as { results?: unknown[] })?.results ?? []);
-      if (items.length === 0) {
-        printInfo("No memories yet.");
-        return;
-      }
-      for (const raw of items) {
-        const m = asMemory(raw);
-        const id = kleur.dim((m.id ?? "").padEnd(24).slice(0, 24));
-        const text = m.content ?? m.text ?? "";
-        process.stdout.write(`${id}  ${truncate(text, 100)}\n`);
-      }
-    });
+    .option(
+      "-C, --container <tag>",
+      "filter by container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config",
+    )
+    .action(
+      async (
+        opts: { limit?: string; cursor?: string; container?: string },
+        cmd: Command,
+      ) => {
+        const json = rootJsonFlag(cmd);
+        const ctx = await getClient();
+        const limit = Number.parseInt(opts.limit ?? "20", 10);
+        if (Number.isNaN(limit) || limit <= 0) {
+          printError("--limit must be a positive integer");
+          process.exit(2);
+        }
+        // Container is an optional filter on list — undefined lists the
+        // workspace; a value scopes to that tenant boundary.
+        const containerTag = resolveContainerTag(ctx.cfg, opts.container);
+        const result = await ctx.client.list({
+          limit,
+          cursor: opts.cursor,
+          containerTag,
+        });
+        if (json) {
+          printJson(result);
+          return;
+        }
+        // confirmed against prod 2026-06-16. list() returns PaginatedMemories
+        // { items: Memory[], nextCursor }.
+        const items = result.items;
+        if (items.length === 0) {
+          printInfo("No memories yet.");
+          return;
+        }
+        for (const m of items) {
+          const id = kleur.dim(memoryId(m).padEnd(24).slice(0, 24));
+          process.stdout.write(`${id}  ${truncate(m.content, 100)}\n`);
+        }
+      },
+    );
 }

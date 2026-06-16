@@ -8,7 +8,7 @@ import { registerWorkspaceCommands } from "./commands/workspace.js";
 import { registerMcpCommand } from "./commands/mcp.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 // Color detection: kleur's autodetect can produce ANSI escapes when this CLI
 // is spawned as a subprocess (e.g. by `claude`, CI runners, or scripts that

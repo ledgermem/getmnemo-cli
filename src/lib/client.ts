@@ -4,6 +4,7 @@ import {
   resolveApiKey,
   resolveApiUrl,
   resolveWorkspaceId,
+  type CliConfig,
 } from "./config.js";
 
 export interface ClientContext {
@@ -11,6 +12,7 @@ export interface ClientContext {
   apiKey: string;
   workspaceId: string;
   baseUrl: string;
+  cfg: CliConfig;
 }
 
 export class ClientAuthError extends Error {
@@ -38,7 +40,7 @@ export async function getClient(): Promise<ClientContext> {
   }
 
   const client = new Mnemo({ apiKey, workspaceId, baseUrl });
-  return { client, apiKey, workspaceId, baseUrl };
+  return { client, apiKey, workspaceId, baseUrl, cfg };
 }
 
 export function parseMetadata(pairs: string[] | undefined): Record<string, string> {

@@ -1,6 +1,6 @@
 {
   "name": "getmnemo-cli",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "Official CLI for Mnemo — manage memories, workspaces, and integrations from your terminal.",
   "type": "module",
   "bin": {
@@ -18,11 +18,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
+    "smoke": "node scripts/prod-smoke.mjs",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "getmnemo": "^0.1.0",
     "commander": "^12.1.0",
+    "getmnemo": "^0.2.0",
     "kleur": "^4.1.5",
     "prompts": "^2.4.2"
   },

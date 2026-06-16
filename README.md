@@ -20,10 +20,14 @@ npx getmnemo-cli --help
 
 ```bash
 getmnemo login                       # save API key + workspace to ~/.getmnemo/config.json
-getmnemo add "Acme prefers blue branding"
-getmnemo search "what brand color does Acme use?"
+getmnemo add "Acme prefers blue branding" --container org:acme
+getmnemo search "what brand color does Acme use?" --container org:acme
 getmnemo doctor                      # verify auth + API reachability
 ```
+
+> `add` and `search` require a **container** (the tenant boundary, e.g.
+> `user:jane` or `org:acme`). Pass `--container <tag>`, set `GETMNEMO_CONTAINER`,
+> or add `defaultContainerTag` to `~/.getmnemo/config.json`.
 
 ## Commands
 
@@ -41,11 +45,13 @@ getmnemo doctor                      # verify auth + API reachability
 
 | Command | Description |
 | --- | --- |
-| `getmnemo add "<content>" [-m key=value ...]` | Add a memory with optional metadata. |
-| `getmnemo search "<query>" [--limit 5]` | Semantic search. |
+| `getmnemo add "<content>" --container <tag> [-m key=value ...]` | Add a memory to a container with optional metadata. |
+| `getmnemo search "<query>" --container <tag> [--limit 5]` | Semantic search within a container. |
 | `getmnemo get <id>` | Fetch a single memory. |
 | `getmnemo rm <id> [--yes]` | Delete a memory. |
-| `getmnemo list [--limit 20] [--cursor <c>]` | Paginate the workspace. |
+| `getmnemo list [--container <tag>] [--limit 20] [--cursor <c>]` | Paginate the workspace (optionally filtered by container). |
+
+`--container` / `-C` accepts a container tag (e.g. `user:jane`). It is required on `add`/`search` and an optional filter on `list`. Resolution order: `--container` flag → `GETMNEMO_CONTAINER` env → `defaultContainerTag` in config.
 
 ### Workspaces
 
@@ -82,6 +88,7 @@ getmnemo doctor                      # verify auth + API reachability
 | `GETMNEMO_API_KEY` | Overrides the saved API key. | — |
 | `GETMNEMO_WORKSPACE_ID` | Overrides the active workspace. | — |
 | `GETMNEMO_API_URL` | Overrides the API base URL. | `https://api.mnemohq.com` |
+| `GETMNEMO_CONTAINER` | Default container tag for `add`/`search`/`list` when no `--container` flag is given. | — |
 
 Environment variables take precedence over `~/.getmnemo/config.json`.
 
@@ -89,10 +96,10 @@ Environment variables take precedence over `~/.getmnemo/config.json`.
 
 ```bash
 # add a tagged memory
-getmnemo add "Customer asked about SOC 2 timeline" -m customer=acme -m channel=email
+getmnemo add "Customer asked about SOC 2 timeline" --container org:acme -m channel=email
 
 # JSON output for piping into jq
-getmnemo search "soc 2" --limit 3 --json | jq '.results[].id'
+getmnemo search "soc 2" --container org:acme --limit 3 --json | jq '.results[].memoryId'
 
 # delete without prompting (CI-safe)
 getmnemo rm mem_01HX... --yes

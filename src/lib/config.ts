@@ -6,6 +6,13 @@ export interface CliConfig {
   apiKey?: string;
   workspaceId?: string;
   baseUrl?: string;
+  /**
+   * Default container tag (tenant boundary, e.g. "user:jane") applied to
+   * add/search/list when no per-command --container flag is given. Only ever
+   * set from explicit user input (config/env) — never a hardcoded fallback,
+   * so we can't leak across tenants.
+   */
+  defaultContainerTag?: string;
   workspaces?: Array<{ id: string; name?: string }>;
   updatedAt?: string;
 }
@@ -67,4 +74,17 @@ export function resolveWorkspaceId(cfg: CliConfig): string | undefined {
 
 export function resolveApiUrl(cfg: CliConfig): string {
   return process.env.GETMNEMO_API_URL ?? cfg.baseUrl ?? DEFAULT_API_URL;
+}
+
+/**
+ * Resolve the container tag (tenant boundary) for a command.
+ * Precedence: explicit --container flag > GETMNEMO_CONTAINER env > config
+ * defaultContainerTag. Returns undefined when none is set — callers must NOT
+ * substitute a fallback that could cross a tenant boundary.
+ */
+export function resolveContainerTag(
+  cfg: CliConfig,
+  flag?: string,
+): string | undefined {
+  return flag ?? process.env.GETMNEMO_CONTAINER ?? cfg.defaultContainerTag;
 }
