@@ -29,7 +29,7 @@ export function registerDoctorCommand(program: Command): void {
       let healthDetail = "";
       let healthUrl: URL | null = null;
       try {
-        healthUrl = new URL("/healthz", baseUrl);
+        healthUrl = new URL("/health", baseUrl);
       } catch {
         healthDetail = `Invalid API URL: "${baseUrl}". Did you forget the scheme (e.g. https://)?`;
       }
@@ -45,7 +45,7 @@ export function registerDoctorCommand(program: Command): void {
           healthDetail = err instanceof Error ? err.message : String(err);
         }
       }
-      checks.push({ name: `API reachable (${baseUrl}/healthz)`, ok: healthOk, detail: healthDetail });
+      checks.push({ name: `API reachable (${baseUrl}/health)`, ok: healthOk, detail: healthDetail });
 
       const allOk = checks.every((c) => c.ok);
 

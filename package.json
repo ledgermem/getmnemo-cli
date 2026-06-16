@@ -1,6 +1,6 @@
 {
   "name": "getmnemo-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Official CLI for Mnemo — manage memories, workspaces, and integrations from your terminal.",
   "type": "module",
   "bin": {
@@ -51,6 +51,6 @@
   },
   "homepage": "https://mnemohq.com",
   "bugs": {
-    "url": "https://github.com/getmnemo/getmnemo-cli/issues"
+    "url": "https://github.com/ledgermem/getmnemo-cli/issues"
   }
 }
