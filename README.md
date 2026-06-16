@@ -59,7 +59,7 @@ getmnemo doctor                      # verify auth + API reachability
 | Command | Description |
 | --- | --- |
 | `getmnemo mcp [--client claude\|cursor]` | Print an MCP server config snippet. |
-| `getmnemo doctor` | Check auth + `GET /healthz`. |
+| `getmnemo doctor` | Check auth + `GET /health`. |
 
 ## Global flags
 
