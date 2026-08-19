@@ -40,9 +40,11 @@ export async function getClient(): Promise<ClientContext> {
     );
   }
 
-  // Seed the SDK's default container from env/config so by-id routes that
-  // require a scope still work when no per-command flag is given. A per-call
-  // containerTag (resolved with the --container flag) always wins over this.
+  // Backstop only: every current command resolves its container per call
+  // (flag > env > config) and passes it explicitly, so this seed is not
+  // consulted today. It exists so any future SDK call that omits a per-call
+  // container falls back to the user's documented env/config default instead
+  // of an SDK error. Per-call values always win over this.
   const client = new Mnemo({
     apiKey,
     workspaceId,

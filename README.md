@@ -25,9 +25,10 @@ getmnemo search "what brand color does Acme use?" --container org:acme
 getmnemo doctor                      # verify auth + API reachability
 ```
 
-> `add` and `search` require a **container** (the tenant boundary, e.g.
-> `user:jane` or `org:acme`). Pass `--container <tag>`, set `GETMNEMO_CONTAINER`,
-> or add `defaultContainerTag` to `~/.getmnemo/config.json`.
+> Every memory command (`add`, `search`, `get`, `rm`, `list`) requires a
+> **container** (the tenant boundary, e.g. `user:jane` or `org:acme`). Pass
+> `--container <tag>`, set `GETMNEMO_CONTAINER`, or add `defaultContainerTag`
+> to `~/.getmnemo/config.json`.
 
 ## Commands
 
@@ -47,11 +48,11 @@ getmnemo doctor                      # verify auth + API reachability
 | --- | --- |
 | `getmnemo add "<content>" --container <tag> [-m key=value ...]` | Add a memory to a container with optional metadata. |
 | `getmnemo search "<query>" --container <tag> [--limit 5]` | Semantic search within a container. |
-| `getmnemo get <id>` | Fetch a single memory. |
-| `getmnemo rm <id> [--yes]` | Delete a memory. |
-| `getmnemo list [--container <tag>] [--limit 20] [--cursor <c>]` | Paginate the workspace (optionally filtered by container). |
+| `getmnemo get <id> --container <tag>` | Fetch a single memory. |
+| `getmnemo rm <id> --container <tag> [--yes] [--permanent]` | Delete a memory (recoverable by default; `--permanent` purges immediately). |
+| `getmnemo list --container <tag> [--limit 20] [--cursor <c>]` | Paginate the memories in a container. |
 
-`--container` / `-C` accepts a container tag (e.g. `user:jane`). It is required on `add`/`search` and an optional filter on `list`. Resolution order: `--container` flag → `GETMNEMO_CONTAINER` env → `defaultContainerTag` in config.
+`--container` / `-C` accepts a container tag (e.g. `user:jane`) and is required on every memory command. Resolution order: `--container` flag → `GETMNEMO_CONTAINER` env → `defaultContainerTag` in config.
 
 ### Workspaces
 
@@ -88,7 +89,7 @@ getmnemo doctor                      # verify auth + API reachability
 | `GETMNEMO_API_KEY` | Overrides the saved API key. | — |
 | `GETMNEMO_WORKSPACE_ID` | Overrides the active workspace. | — |
 | `GETMNEMO_API_URL` | Overrides the API base URL. | `https://api.mnemohq.com` |
-| `GETMNEMO_CONTAINER` | Default container tag for `add`/`search`/`list` when no `--container` flag is given. | — |
+| `GETMNEMO_CONTAINER` | Default container tag for the memory commands when no `--container` flag is given. | — |
 
 Environment variables take precedence over `~/.getmnemo/config.json`.
 
@@ -102,7 +103,7 @@ getmnemo add "Customer asked about SOC 2 timeline" --container org:acme -m chann
 getmnemo search "soc 2" --container org:acme --limit 3 --json | jq '.results[].memoryId'
 
 # delete without prompting (CI-safe)
-getmnemo rm mem_01HX... --yes
+getmnemo rm mem_01HX... --container org:acme --yes
 
 # generate Claude Desktop MCP config
 getmnemo mcp --client claude > claude_desktop_config.json
