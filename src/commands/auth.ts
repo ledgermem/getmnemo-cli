@@ -63,7 +63,11 @@ export function registerAuthCommands(program: Command): void {
       // not silently overwrite a previously-working config.
       try {
         const probe = new Mnemo({ apiKey, workspaceId, baseUrl });
-        await probe.list({ limit: 1 });
+        // getmnemo 0.5.1 list() throws client-side without a container, and
+        // none is configured yet at login. Probe with a synthetic read-only
+        // tag: we only care whether the key authenticates (401 vs 2xx), and
+        // listing an empty container is a valid, cheap request.
+        await probe.list({ limit: 1, containerTag: "cli:login-probe" });
       } catch (err: unknown) {
         const status = (err as { status?: number })?.status;
         const message =

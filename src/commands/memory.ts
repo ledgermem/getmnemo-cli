@@ -3,7 +3,7 @@ import kleur from "kleur";
 import prompts from "prompts";
 import type { Memory, SearchHit } from "getmnemo";
 import { getClient, parseMetadata } from "../lib/client.js";
-import { resolveContainerTag } from "../lib/config.js";
+import { resolveContainerTag, type CliConfig } from "../lib/config.js";
 import {
   printError,
   printInfo,
@@ -19,15 +19,34 @@ function memoryId(m: Memory | SearchHit): string {
   return "memoryId" in m ? m.memoryId : m.id;
 }
 
+const CONTAINER_OPTION_FLAGS = "-C, --container <tag>";
+const CONTAINER_OPTION_DESC =
+  "container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config";
+
+// Every memory command needs a container as of getmnemo 0.5.1: the API 400s
+// by-id get/delete without a scope (requireMemoryScope guard), and the SDK
+// itself throws on add/search/list. Resolve or exit(2) before any request.
+function requireContainerTag(cfg: CliConfig, flag: string | undefined, json: boolean): string {
+  const containerTag = resolveContainerTag(cfg, flag);
+  if (!containerTag) {
+    if (json) {
+      printJson({ ok: false, error: "container_required" });
+    } else {
+      printError(
+        "A container is required. Pass --container <tag>, set GETMNEMO_CONTAINER, or add defaultContainerTag to your config.",
+      );
+    }
+    process.exit(2);
+  }
+  return containerTag;
+}
+
 export function registerMemoryCommands(program: Command): void {
   program
     .command("add <content>")
     .description("add a new memory")
     .option("-m, --metadata <pair...>", "metadata key=value pairs (repeatable)")
-    .option(
-      "-C, --container <tag>",
-      "container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config",
-    )
+    .option(CONTAINER_OPTION_FLAGS, CONTAINER_OPTION_DESC)
     .action(
       async (
         content: string,
@@ -37,13 +56,7 @@ export function registerMemoryCommands(program: Command): void {
         const json = rootJsonFlag(cmd);
         const ctx = await getClient();
         const metadata = parseMetadata(opts.metadata);
-        const containerTag = resolveContainerTag(ctx.cfg, opts.container);
-        if (!containerTag) {
-          printError(
-            "A container is required. Pass --container <tag>, set GETMNEMO_CONTAINER, or add defaultContainerTag to your config.",
-          );
-          process.exit(2);
-        }
+        const containerTag = requireContainerTag(ctx.cfg, opts.container, json);
         const result = await ctx.client.add({ content, metadata, containerTag });
         if (json) {
           printJson(result);
@@ -62,10 +75,7 @@ export function registerMemoryCommands(program: Command): void {
     .command("search <query>")
     .description("semantic search across memories")
     .option("-l, --limit <n>", "max results", "5")
-    .option(
-      "-C, --container <tag>",
-      "container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config",
-    )
+    .option(CONTAINER_OPTION_FLAGS, CONTAINER_OPTION_DESC)
     .action(
       async (
         query: string,
@@ -79,14 +89,9 @@ export function registerMemoryCommands(program: Command): void {
           printError("--limit must be a positive integer");
           process.exit(2);
         }
-        const containerTag = resolveContainerTag(ctx.cfg, opts.container);
-        if (!containerTag) {
-          printError(
-            "A container is required. Pass --container <tag>, set GETMNEMO_CONTAINER, or add defaultContainerTag to your config.",
-          );
-          process.exit(2);
-        }
-        // Field is `q` (NOT `query`) per the v0.2.0 contract.
+        const containerTag = requireContainerTag(ctx.cfg, opts.container, json);
+        // Field is `q` (NOT `query`) per the API contract (re-verified
+        // against getmnemo 0.5.1).
         const result = await ctx.client.search({ q: query, limit, containerTag });
         if (json) {
           printJson(result);
@@ -115,12 +120,14 @@ export function registerMemoryCommands(program: Command): void {
   program
     .command("get <id>")
     .description("fetch a single memory by id")
-    .action(async (id: string, _opts: unknown, cmd: Command) => {
+    .option(CONTAINER_OPTION_FLAGS, CONTAINER_OPTION_DESC)
+    .action(async (id: string, opts: { container?: string }, cmd: Command) => {
       const json = rootJsonFlag(cmd);
       const ctx = await getClient();
+      const containerTag = requireContainerTag(ctx.cfg, opts.container, json);
       let found: Memory;
       try {
-        found = await ctx.client.get(id);
+        found = await ctx.client.get(id, { containerTag });
       } catch (err: unknown) {
         const status = (err as { status?: number })?.status;
         if (status === 404) {
@@ -143,11 +150,19 @@ export function registerMemoryCommands(program: Command): void {
 
   program
     .command("rm <id>")
-    .description("delete a memory")
+    .description("delete a memory (recoverable by default; --permanent purges)")
     .option("-y, --yes", "skip confirmation prompt", false)
-    .action(async (id: string, opts: { yes?: boolean }, cmd: Command) => {
+    .option("-P, --permanent", "purge immediately instead of a recoverable delete", false)
+    .option(CONTAINER_OPTION_FLAGS, CONTAINER_OPTION_DESC)
+    .action(async (
+      id: string,
+      opts: { yes?: boolean; permanent?: boolean; container?: string },
+      cmd: Command,
+    ) => {
       const json = rootJsonFlag(cmd);
       const ctx = await getClient();
+      // Resolve before prompting so a missing container fails immediately.
+      const containerTag = requireContainerTag(ctx.cfg, opts.container, json);
       if (!opts.yes) {
         if (!process.stdin.isTTY) {
           if (json) printJson({ ok: false, error: "confirmation_required" });
@@ -157,7 +172,7 @@ export function registerMemoryCommands(program: Command): void {
         const { confirm } = await prompts({
           type: "confirm",
           name: "confirm",
-          message: `Delete memory ${id}?`,
+          message: `${opts.permanent ? "Permanently delete" : "Delete"} memory ${id}?`,
           initial: false,
         });
         if (!confirm) {
@@ -165,23 +180,31 @@ export function registerMemoryCommands(program: Command): void {
           return;
         }
       }
-      await ctx.client.delete(id);
+      const result = await ctx.client.delete(id, {
+        containerTag,
+        permanent: opts.permanent === true,
+      });
       if (json) {
-        printJson({ ok: true, id });
+        printJson({ ok: true, id, receipt: result.receipt ?? null });
         return;
       }
-      printSuccess(`Deleted ${id}`);
+      // Deletion is recoverable by default when the workspace has a recovery
+      // window — say so instead of implying a completed purge.
+      const restorableUntil =
+        result.receipt?.status === "restorable" ? result.receipt.restorableUntil : undefined;
+      printSuccess(
+        restorableUntil
+          ? `Deleted ${id} (restorable until ${restorableUntil})`
+          : `Deleted ${id}`,
+      );
     });
 
   program
     .command("list")
-    .description("list memories in the current workspace")
+    .description("list memories in a container")
     .option("-l, --limit <n>", "page size", "20")
     .option("-c, --cursor <cursor>", "pagination cursor")
-    .option(
-      "-C, --container <tag>",
-      "filter by container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config",
-    )
+    .option(CONTAINER_OPTION_FLAGS, CONTAINER_OPTION_DESC)
     .action(
       async (
         opts: { limit?: string; cursor?: string; container?: string },
@@ -194,9 +217,10 @@ export function registerMemoryCommands(program: Command): void {
           printError("--limit must be a positive integer");
           process.exit(2);
         }
-        // Container is an optional filter on list — undefined lists the
-        // workspace; a value scopes to that tenant boundary.
-        const containerTag = resolveContainerTag(ctx.cfg, opts.container);
+        // As of getmnemo 0.5.1 list() requires a container (the SDK throws
+        // without one) — gate it like the other commands so the failure is
+        // the CLI's exit-2 message, not a raw SDK error.
+        const containerTag = requireContainerTag(ctx.cfg, opts.container, json);
         const result = await ctx.client.list({
           limit,
           cursor: opts.cursor,

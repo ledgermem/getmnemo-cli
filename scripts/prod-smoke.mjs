@@ -183,18 +183,23 @@ async function main() {
   console.log('[smoke] container B:', containerB)
 
   // Track created ids so cleanup runs even if assertions throw.
-  const createdIds = []
+  // Track each created id WITH its container: `rm` requires a --container
+  // (by-id routes are scoped), and the two writes land in different ones.
+  const created = []
 
   try {
     // ---- HAPPY PATH: add to two distinct containers --------------------
     const addA = await runCli(['add', alphaContent, '--container', containerA], cliEnv)
     const addB = await runCli(['add', bravoContent, '--container', containerB], cliEnv)
 
-    createdIds.push(...addedIds(addA), ...addedIds(addB))
+    created.push(
+      ...addedIds(addA).map((id) => ({ id, container: containerA })),
+      ...addedIds(addB).map((id) => ({ id, container: containerB })),
+    )
 
-    if (createdIds.length < 2) {
+    if (created.length < 2) {
       fail(
-        `add did not return ids for both writes — got ${createdIds.length} ` +
+        `add did not return ids for both writes — got ${created.length} ` +
           `(addA.items=${addA?.items?.length ?? 0}, addB.items=${addB?.items?.length ?? 0})`,
       )
     }
@@ -235,9 +240,9 @@ async function main() {
     console.log('[smoke] OK isolation: A↛B and B↛A — no cross-container leakage')
   } finally {
     // ---- CLEANUP: best-effort delete; failure warns, never fatal -------
-    for (const id of createdIds) {
+    for (const { id, container } of created) {
       try {
-        await runCli(['rm', id, '--yes'], cliEnv)
+        await runCli(['rm', id, '--yes', '--container', container], cliEnv)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.warn(`[smoke] WARN: cleanup delete failed for memory ${id}: ${msg}`)

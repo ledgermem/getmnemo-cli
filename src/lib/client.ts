@@ -3,6 +3,7 @@ import {
   readConfig,
   resolveApiKey,
   resolveApiUrl,
+  resolveContainerTag,
   resolveWorkspaceId,
   type CliConfig,
 } from "./config.js";
@@ -39,7 +40,17 @@ export async function getClient(): Promise<ClientContext> {
     );
   }
 
-  const client = new Mnemo({ apiKey, workspaceId, baseUrl });
+  // Backstop only: every current command resolves its container per call
+  // (flag > env > config) and passes it explicitly, so this seed is not
+  // consulted today. It exists so any future SDK call that omits a per-call
+  // container falls back to the user's documented env/config default instead
+  // of an SDK error. Per-call values always win over this.
+  const client = new Mnemo({
+    apiKey,
+    workspaceId,
+    baseUrl,
+    defaultContainerTag: resolveContainerTag(cfg),
+  });
   return { client, apiKey, workspaceId, baseUrl, cfg };
 }
 
