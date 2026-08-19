@@ -3,6 +3,7 @@ import {
   readConfig,
   resolveApiKey,
   resolveApiUrl,
+  resolveContainerTag,
   resolveWorkspaceId,
   type CliConfig,
 } from "./config.js";
@@ -39,7 +40,15 @@ export async function getClient(): Promise<ClientContext> {
     );
   }
 
-  const client = new Mnemo({ apiKey, workspaceId, baseUrl });
+  // Seed the SDK's default container from env/config so by-id routes that
+  // require a scope still work when no per-command flag is given. A per-call
+  // containerTag (resolved with the --container flag) always wins over this.
+  const client = new Mnemo({
+    apiKey,
+    workspaceId,
+    baseUrl,
+    defaultContainerTag: resolveContainerTag(cfg),
+  });
   return { client, apiKey, workspaceId, baseUrl, cfg };
 }
 

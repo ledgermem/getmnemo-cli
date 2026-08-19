@@ -3,7 +3,7 @@ import kleur from "kleur";
 import prompts from "prompts";
 import type { Memory, SearchHit } from "getmnemo";
 import { getClient, parseMetadata } from "../lib/client.js";
-import { resolveContainerTag } from "../lib/config.js";
+import { resolveContainerTag, type CliConfig } from "../lib/config.js";
 import {
   printError,
   printInfo,
@@ -17,6 +17,19 @@ import {
 // hits carry `memoryId`; full Memory objects (add/get/update/list) carry `id`.
 function memoryId(m: Memory | SearchHit): string {
   return "memoryId" in m ? m.memoryId : m.id;
+}
+
+// The API rejects add/search and by-id get/delete without a scope, so resolve
+// or exit(2) before the request. `list` is exempt — container is optional there.
+function requireContainerTag(cfg: CliConfig, flag?: string): string {
+  const containerTag = resolveContainerTag(cfg, flag);
+  if (!containerTag) {
+    printError(
+      "A container is required. Pass --container <tag>, set GETMNEMO_CONTAINER, or add defaultContainerTag to your config.",
+    );
+    process.exit(2);
+  }
+  return containerTag;
 }
 
 export function registerMemoryCommands(program: Command): void {
@@ -37,13 +50,7 @@ export function registerMemoryCommands(program: Command): void {
         const json = rootJsonFlag(cmd);
         const ctx = await getClient();
         const metadata = parseMetadata(opts.metadata);
-        const containerTag = resolveContainerTag(ctx.cfg, opts.container);
-        if (!containerTag) {
-          printError(
-            "A container is required. Pass --container <tag>, set GETMNEMO_CONTAINER, or add defaultContainerTag to your config.",
-          );
-          process.exit(2);
-        }
+        const containerTag = requireContainerTag(ctx.cfg, opts.container);
         const result = await ctx.client.add({ content, metadata, containerTag });
         if (json) {
           printJson(result);
@@ -79,13 +86,7 @@ export function registerMemoryCommands(program: Command): void {
           printError("--limit must be a positive integer");
           process.exit(2);
         }
-        const containerTag = resolveContainerTag(ctx.cfg, opts.container);
-        if (!containerTag) {
-          printError(
-            "A container is required. Pass --container <tag>, set GETMNEMO_CONTAINER, or add defaultContainerTag to your config.",
-          );
-          process.exit(2);
-        }
+        const containerTag = requireContainerTag(ctx.cfg, opts.container);
         // Field is `q` (NOT `query`) per the v0.2.0 contract.
         const result = await ctx.client.search({ q: query, limit, containerTag });
         if (json) {
@@ -115,12 +116,18 @@ export function registerMemoryCommands(program: Command): void {
   program
     .command("get <id>")
     .description("fetch a single memory by id")
-    .action(async (id: string, _opts: unknown, cmd: Command) => {
+    .option(
+      "-C, --container <tag>",
+      "container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config",
+    )
+    .action(async (id: string, opts: { container?: string }, cmd: Command) => {
       const json = rootJsonFlag(cmd);
       const ctx = await getClient();
+      // GET /v1/memories/:id 400s without a scope (requireMemoryScope guard).
+      const containerTag = requireContainerTag(ctx.cfg, opts.container);
       let found: Memory;
       try {
-        found = await ctx.client.get(id);
+        found = await ctx.client.get(id, { containerTag });
       } catch (err: unknown) {
         const status = (err as { status?: number })?.status;
         if (status === 404) {
@@ -145,9 +152,16 @@ export function registerMemoryCommands(program: Command): void {
     .command("rm <id>")
     .description("delete a memory")
     .option("-y, --yes", "skip confirmation prompt", false)
-    .action(async (id: string, opts: { yes?: boolean }, cmd: Command) => {
+    .option(
+      "-C, --container <tag>",
+      "container tag / tenant boundary (e.g. user:jane); falls back to GETMNEMO_CONTAINER or config",
+    )
+    .action(async (id: string, opts: { yes?: boolean; container?: string }, cmd: Command) => {
       const json = rootJsonFlag(cmd);
       const ctx = await getClient();
+      // DELETE /v1/memories/:id 400s without a scope (requireMemoryScope
+      // guard). Resolve before prompting so the failure is immediate.
+      const containerTag = requireContainerTag(ctx.cfg, opts.container);
       if (!opts.yes) {
         if (!process.stdin.isTTY) {
           if (json) printJson({ ok: false, error: "confirmation_required" });
@@ -165,7 +179,7 @@ export function registerMemoryCommands(program: Command): void {
           return;
         }
       }
-      await ctx.client.delete(id);
+      await ctx.client.delete(id, { containerTag });
       if (json) {
         printJson({ ok: true, id });
         return;
