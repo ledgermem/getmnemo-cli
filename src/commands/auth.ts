@@ -22,7 +22,7 @@ export function registerAuthCommands(program: Command): void {
     .option("--api-key <key>", "API key (skips interactive prompt)")
     .option("--workspace-id <id>", "deprecated: workspace comes from the API key; saved if given")
     .option("--api-url <url>", "override API base URL")
-    .action(async (opts: { apiKey?: string; workspaceId?: string; baseUrl?: string }, cmd: Command) => {
+    .action(async (opts: { apiKey?: string; workspaceId?: string; apiUrl?: string }, cmd: Command) => {
       const json = rootJsonFlag(cmd);
       const cfg = await readConfig();
       const defaultApiUrl = resolveApiUrl(cfg);
@@ -36,7 +36,7 @@ export function registerAuthCommands(program: Command): void {
             validate: (val: string) => (val.trim().length > 0 ? true : "API key is required"),
           },
           {
-            type: opts.baseUrl ? null : "text",
+            type: opts.apiUrl ? null : "text",
             name: "baseUrl",
             message: "API URL",
             initial: defaultApiUrl,
@@ -52,7 +52,8 @@ export function registerAuthCommands(program: Command): void {
       const apiKey = opts.apiKey ?? (responses.apiKey as string);
       // Deprecated: the API key identifies the workspace. Only saved if given.
       const workspaceId = opts.workspaceId?.trim() || undefined;
-      const baseUrl = opts.baseUrl ?? (responses.baseUrl as string) ?? defaultApiUrl;
+      // commander maps `--api-url` to `opts.apiUrl`.
+      const baseUrl = opts.apiUrl ?? (responses.baseUrl as string) ?? defaultApiUrl;
 
       // Verify credentials before persisting — a typo should fail loudly,
       // not silently overwrite a previously-working config.

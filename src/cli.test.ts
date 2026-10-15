@@ -357,7 +357,29 @@ describe("Mnemo CLI", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it("login verifies credentials with a synthetic probe container", async () => {
+    it("login honours --api-url without prompting", async () => {
+    vi.stubEnv(
+      "HOME",
+      join(tmpdir(), `getmnemo-cli-test-home-login-url-${process.pid}`),
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ items: [], nextCursor: null }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const program = buildCli();
+    program.exitOverride();
+    await program.parseAsync([
+      "node", "getmnemo", "--json", "login",
+      "--api-key", "mk_login_test", "--api-url", "https://custom.test.invalid",
+    ]);
+
+    const [url] = firstCall(fetchMock);
+    expect(url.startsWith("https://custom.test.invalid/v1/memories")).toBe(true);
+    expect(stdout).toMatch(/"baseUrl": "https:\/\/custom\.test\.invalid"/);
+  });
+
+  it("login verifies credentials with a synthetic probe container", async () => {
       // Own HOME so the config write cannot leak into the shared stub path.
       vi.stubEnv(
         "HOME",
