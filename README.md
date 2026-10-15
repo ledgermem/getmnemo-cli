@@ -19,7 +19,7 @@ npx getmnemo-cli --help
 ## Quickstart
 
 ```bash
-getmnemo login                       # save API key + workspace to ~/.getmnemo/config.json
+getmnemo login                       # save API key to ~/.getmnemo/config.json
 getmnemo add "Acme prefers blue branding" --container org:acme
 getmnemo search "what brand color does Acme use?" --container org:acme
 getmnemo doctor                      # verify auth + API reachability
@@ -36,11 +36,11 @@ getmnemo doctor                      # verify auth + API reachability
 
 | Command | Description |
 | --- | --- |
-| `getmnemo login` | Prompt for API key, workspace ID, and (optionally) API URL; persist to `~/.getmnemo/config.json`. |
+| `getmnemo login` | Prompt for API key and (optionally) API URL; verify; persist to `~/.getmnemo/config.json`. The API key identifies the workspace. |
 | `getmnemo logout` | Remove saved credentials. |
-| `getmnemo whoami` | Print the active workspace + API URL. |
+| `getmnemo whoami` | Print the API key preview + API URL (and workspace, if one is still configured). |
 
-`login` flags: `--api-key`, `--workspace-id`, `--api-url` (skip the prompt).
+`login` flags: `--api-key`, `--api-url` (skip the prompt). `--workspace-id` is deprecated and optional — workspace identity comes from the API key.
 
 ### Memory operations
 
@@ -108,7 +108,7 @@ With `--json`, runtime errors are written to stderr as `{"ok": false, "error": "
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `GETMNEMO_API_KEY` | Overrides the saved API key. | — |
-| `GETMNEMO_WORKSPACE_ID` | Overrides the active workspace. | — |
+| `GETMNEMO_WORKSPACE_ID` | Deprecated and optional — the API key identifies the workspace. | — |
 | `GETMNEMO_API_URL` | Overrides the API base URL. | `https://api.mnemohq.com` |
 | `GETMNEMO_CONTAINER` | Default container tag for the memory commands when no `--container` flag is given. | — |
 

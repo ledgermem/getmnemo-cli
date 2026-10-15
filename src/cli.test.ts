@@ -67,7 +67,7 @@ describe("Mnemo CLI", () => {
     } catch {
       // commander throws on version by design
     }
-    expect(stdout.trim()).toBe("0.3.0");
+    expect(stdout.trim()).toBe("0.4.0");
   });
 
   it("exits 2 for an unknown option on a subcommand (exit callback is inherited)", async () => {

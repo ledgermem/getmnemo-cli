@@ -14,7 +14,11 @@ export interface ClientContext {
   /** Transport for people/reminders/brief/timeline/meetings/merge. */
   api: PersonalApi;
   apiKey: string;
-  workspaceId: string;
+  /**
+   * Optional and deprecated: workspace identity comes from the API key. Kept
+   * only so configs that still set it keep working; getmnemo 0.6 ignores it.
+   */
+  workspaceId?: string;
   baseUrl: string;
   cfg: CliConfig;
 }
@@ -37,11 +41,9 @@ export async function getClient(): Promise<ClientContext> {
       "Not authenticated. Run `getmnemo login` or set GETMNEMO_API_KEY.",
     );
   }
-  if (!workspaceId) {
-    throw new ClientAuthError(
-      "No workspace selected. Run `getmnemo login` or set GETMNEMO_WORKSPACE_ID.",
-    );
-  }
+  // No workspace check: the API key carries workspace identity. A configured
+  // workspaceId is still passed through (getmnemo 0.6 ignores it) so existing
+  // configs keep working unchanged.
 
   // Backstop only: every current command resolves its container per call
   // (flag > env > config) and passes it explicitly, so this seed is not
@@ -50,7 +52,7 @@ export async function getClient(): Promise<ClientContext> {
   // of an SDK error. Per-call values always win over this.
   const client = new Mnemo({
     apiKey,
-    workspaceId,
+    ...(workspaceId ? { workspaceId } : {}),
     baseUrl,
     defaultContainerTag: resolveContainerTag(cfg),
   });
