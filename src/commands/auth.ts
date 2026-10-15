@@ -20,9 +20,9 @@ export function registerAuthCommands(program: Command): void {
     .command("login")
     .description("authenticate with Mnemo and save credentials locally")
     .option("--api-key <key>", "API key (skips interactive prompt)")
-    .option("--workspace-id <id>", "workspace id (skips interactive prompt)")
+    .option("--workspace-id <id>", "deprecated: workspace comes from the API key; saved if given")
     .option("--api-url <url>", "override API base URL")
-    .action(async (opts: { apiKey?: string; workspaceId?: string; baseUrl?: string }, cmd: Command) => {
+    .action(async (opts: { apiKey?: string; workspaceId?: string; apiUrl?: string }, cmd: Command) => {
       const json = rootJsonFlag(cmd);
       const cfg = await readConfig();
       const defaultApiUrl = resolveApiUrl(cfg);
@@ -36,13 +36,7 @@ export function registerAuthCommands(program: Command): void {
             validate: (val: string) => (val.trim().length > 0 ? true : "API key is required"),
           },
           {
-            type: opts.workspaceId ? null : "text",
-            name: "workspaceId",
-            message: "Workspace ID",
-            validate: (val: string) => (val.trim().length > 0 ? true : "Workspace ID is required"),
-          },
-          {
-            type: opts.baseUrl ? null : "text",
+            type: opts.apiUrl ? null : "text",
             name: "baseUrl",
             message: "API URL",
             initial: defaultApiUrl,
@@ -56,14 +50,16 @@ export function registerAuthCommands(program: Command): void {
       );
 
       const apiKey = opts.apiKey ?? (responses.apiKey as string);
-      const workspaceId = opts.workspaceId ?? (responses.workspaceId as string);
-      const baseUrl = opts.baseUrl ?? (responses.baseUrl as string) ?? defaultApiUrl;
+      // Deprecated: the API key identifies the workspace. Only saved if given.
+      const workspaceId = opts.workspaceId?.trim() || undefined;
+      // commander maps `--api-url` to `opts.apiUrl`.
+      const baseUrl = opts.apiUrl ?? (responses.baseUrl as string) ?? defaultApiUrl;
 
       // Verify credentials before persisting — a typo should fail loudly,
       // not silently overwrite a previously-working config.
       try {
-        const probe = new Mnemo({ apiKey, workspaceId, baseUrl });
-        // getmnemo 0.5.1 list() throws client-side without a container, and
+        const probe = new Mnemo({ apiKey, baseUrl });
+        // getmnemo list() throws client-side without a container, and
         // none is configured yet at login. Probe with a synthetic read-only
         // tag: we only care whether the key authenticates (401 vs 2xx), and
         // listing an empty container is a valid, cheap request.
@@ -81,13 +77,15 @@ export function registerAuthCommands(program: Command): void {
         process.exit(1);
       }
 
-      await writeConfig({ apiKey, workspaceId, baseUrl });
+      await writeConfig({ apiKey, baseUrl, ...(workspaceId ? { workspaceId } : {}) });
 
       if (json) {
-        printJson({ ok: true, workspaceId, baseUrl });
+        printJson({ ok: true, workspaceId: workspaceId ?? null, baseUrl });
         return;
       }
-      printSuccess(`Logged in. Workspace: ${workspaceId}`);
+      printSuccess(
+        workspaceId ? `Logged in. Workspace: ${workspaceId}` : "Logged in.",
+      );
     });
 
   program
@@ -105,7 +103,7 @@ export function registerAuthCommands(program: Command): void {
 
   program
     .command("whoami")
-    .description("show the current authenticated workspace")
+    .description("show the current API key, API URL, and (deprecated) workspace")
     .action(async (_opts: unknown, cmd: Command) => {
       const json = rootJsonFlag(cmd);
       const cfg = await readConfig();
@@ -114,7 +112,7 @@ export function registerAuthCommands(program: Command): void {
       const baseUrl = resolveApiUrl(cfg);
 
       const payload = {
-        authenticated: Boolean(apiKey && workspaceId),
+        authenticated: Boolean(apiKey),
         workspaceId: workspaceId ?? null,
         baseUrl,
         apiKeyPreview: apiKey ? `${apiKey.slice(0, 4)}…${apiKey.slice(-4)}` : null,
@@ -128,7 +126,7 @@ export function registerAuthCommands(program: Command): void {
         printInfo("Not logged in. Run `getmnemo login`.");
         return;
       }
-      printInfo(`Workspace: ${payload.workspaceId}`);
+      if (payload.workspaceId) printInfo(`Workspace: ${payload.workspaceId}`);
       printInfo(`API URL:   ${payload.baseUrl}`);
       printInfo(`API key:   ${payload.apiKeyPreview}`);
     });

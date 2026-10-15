@@ -11,7 +11,9 @@ export function registerMcpCommand(program: Command): void {
       const json = rootJsonFlag(cmd);
       const cfg = await readConfig();
       const apiKey = resolveApiKey(cfg) ?? "<your-getmnemo-api-key>";
-      const workspaceId = resolveWorkspaceId(cfg) ?? "<your-workspace-id>";
+      // Deprecated (the API key identifies the workspace); only emitted when
+      // the user still has one configured.
+      const workspaceId = resolveWorkspaceId(cfg);
       const baseUrl = resolveApiUrl(cfg);
 
       const snippet = {
@@ -23,7 +25,7 @@ export function registerMcpCommand(program: Command): void {
             args: ["-y", "getmnemo-mcp"],
             env: {
               GETMNEMO_API_KEY: apiKey,
-              GETMNEMO_WORKSPACE_ID: workspaceId,
+              ...(workspaceId ? { GETMNEMO_WORKSPACE_ID: workspaceId } : {}),
               GETMNEMO_API_URL: baseUrl,
             },
           },

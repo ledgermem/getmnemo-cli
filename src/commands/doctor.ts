@@ -23,7 +23,6 @@ export function registerDoctorCommand(program: Command): void {
 
       checks.push({ name: "config file present", ok: Boolean(cfg.updatedAt), detail: cfg.updatedAt });
       checks.push({ name: "API key configured", ok: Boolean(apiKey) });
-      checks.push({ name: "workspace configured", ok: Boolean(workspaceId), detail: workspaceId });
 
       let healthOk = false;
       let healthDetail = "";

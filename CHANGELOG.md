@@ -4,6 +4,18 @@ All notable changes to `getmnemo-cli` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-10-15
+
+### Changed
+- `getmnemo` core dependency `^0.5.1` → `^0.6.0`.
+- A workspace ID is no longer required: with an API key, workspace identity comes from the key. Commands no longer fail with "No workspace selected".
+- `login` no longer prompts for a workspace ID; `--workspace-id` is deprecated and only saved if given.
+- `whoami` reports authenticated with just an API key; `doctor` drops the "workspace configured" check; `mcp` only emits `GETMNEMO_WORKSPACE_ID` when one is still configured.
+
+### Notes
+- Minor bump (not patch): `login`, `whoami`, `doctor` and `mcp` output change, and the core dependency moves a minor version.
+- `GETMNEMO_WORKSPACE_ID` / a saved `workspaceId` are still accepted but ignored by getmnemo 0.6.
+
 ## [0.3.0] — 2026-09-02
 
 ### Added
